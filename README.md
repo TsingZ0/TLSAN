@@ -14,6 +14,6 @@ Amazon also exposes the official datasets\footnote{http://jmcauley.ucsd.edu/data
 
 ## How to run the codes
 Build dataset:
-`python3 build_dataset.py`
+```python3 build_dataset.py```
 Train and evaluate the model:
-`python3 train.py`
+```python3 train.py```
