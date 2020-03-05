@@ -12,6 +12,16 @@ Amazon exposes the official datasets (http://jmcauley.ucsd.edu/data/amazon/) whi
 1. Remove the users whose interactions less than 10 and the items which interactions less than 8 to ensure the effectiveness of each user and item.
 2. Select the users with more than 4 sessions, and select up to 90 behavior records for the remaining users. This step guarantees the existence of long- and short-term behavior records and all behavior records occurred within recent three months.
 
+### Statistics (after preprocessing)
+Datasets | users | items | categories | samples | avg.<br>items/cate | avg.<br>behaviors/item | avg.<br>behaviors/user
+:-: | :-: | :-: | :-: | :-: | :-: | :-: | :-:
+Electronics | 39991 | 22048 | 673 | 561100 | 32.8 | 25.4 | 14.0
+Clothing-Shoes | 2010 | 1723 | 226 | 13157 | 7.6 | 7.6 | 6.5
+Digital-Music | 1659 | 1583 | 53 | 28852 | 29.9 | 18.2 | 17.4
+Beauty | 3783 | 2658 | 179 | 54225 | 14.8 | 20.4 | 14.3
+Video-Games | 5436 | 4295 | 58 | 83748 | 74.1 | 19.5 | 15.4
+Toys-and-Games | 2677 | 2474 | 221 | 37515 | 11.2 | 15.2 | 14.0
+
 ## How to run the codes
 Build dataset:
 ```
