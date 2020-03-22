@@ -313,7 +313,7 @@ def attention_net(
         is_training, 
         reuse):
     with tf.variable_scope("all", reuse=reuse):
-        with tf.variable_scope("long-term"):
+        with tf.variable_scope("long_term"):
             user_exp = tf.tile(tf.expand_dims(user, 1), [1, tf.shape(enc)[1], 1])
             enc = tf.multiply(user_exp, enc)
             for i in range(num_blocks):
@@ -346,7 +346,7 @@ def attention_net(
                             tensor_dict=None, 
                             name='_bw_attention')
 
-                    with tf.variable_scope('long-term layer'):
+                    with tf.variable_scope('long_term_layer'):
                         enc, att0 = feature_wise_attention(
                             rep_tensor=tf.concat([fw_res, bw_res], -1), 
                             rep_length=sl, 
@@ -361,13 +361,13 @@ def attention_net(
         
                     enc = tf.expand_dims(tf.layers.dense(enc, num_units), 1)
 
-        with tf.variable_scope("short-term"):
+        with tf.variable_scope("short_term"):
             enc = tf.concat([enc, enc_new], 1)
             user_exp = tf.tile(tf.expand_dims(user, 1), [1, tf.shape(enc)[1], 1])
             enc = tf.multiply(user_exp, enc)
             for i in range(num_blocks):
                 with tf.variable_scope("num_blocks1_{}".format(i)):
-                    with tf.variable_scope("short-term layer"):
+                    with tf.variable_scope("short_term_layer"):
                         enc_new, att1 = feature_wise_attention(
                             rep_tensor=enc,
                             rep_length=sl_new+1, 
