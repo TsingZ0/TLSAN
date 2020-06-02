@@ -162,13 +162,12 @@ class Model(object):
              + self.config['regulation_rate'] * l2_norm
 
         self.train_summary = tf.summary.merge([
-            tf.summary.histogram('embedding/0_gamma', gamma),
+            tf.summary.histogram('gamma', gamma),
             tf.summary.histogram('embedding/1_item_emb', item_emb),
             tf.summary.histogram('embedding/2_user_emb', user_emb),
-            tf.summary.histogram('embedding/3_history_emb', h_emb),
-            tf.summary.histogram('embedding/4_history_emb_new', h_emb_new),
+            tf.summary.histogram('embedding/3_cate_emb', cate_emb),
             tf.summary.histogram('attention_output', u_t),
-            tf.summary.scalar('L2_norm_user_item Loss', l2_norm),
+            tf.summary.scalar('L2_norm_user_item', l2_norm),
             tf.summary.scalar('Training Loss', self.loss),  
             ])
 

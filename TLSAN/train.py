@@ -41,7 +41,7 @@ tf.app.flags.DEFINE_float('max_gradient_norm', 5.0, 'Clip gradients to this norm
 
 tf.app.flags.DEFINE_integer('train_batch_size', 32, 'Training Batch size')
 tf.app.flags.DEFINE_integer('test_batch_size', 128, 'Testing Batch size')
-tf.app.flags.DEFINE_integer('max_epochs', 20, 'Maximum # of training epochs')
+tf.app.flags.DEFINE_integer('max_epochs', 20, 'Maximum number of training epochs')
 
 tf.app.flags.DEFINE_integer('display_freq', 100, 'Display training status every this iteration')
 tf.app.flags.DEFINE_integer('eval_freq', 1000, 'Display training status every this iteration')
@@ -97,12 +97,22 @@ def eval_prec(sess, test_set, model):
   for _, batch in DataInputTest(test_set, FLAGS.test_batch_size):
     model.eval_prec(sess, batch)
   prec = sess.run([model.prec_1, model.prec_10, model.prec_20, model.prec_30, model.prec_40, model.prec_50])
+  for i, k in zip(range(6), [1, 10, 20, 30, 40, 50]):
+    model.eval_writer.add_summary(
+      summary=tf.Summary(
+          value=[tf.Summary.Value(tag='P@'+str(k), simple_value=prec[i])]),
+      global_step=model.global_step.eval())
   return prec
 
 def eval_recall(sess, test_set, model):
   for _, batch in DataInputTest(test_set, FLAGS.test_batch_size):
     model.eval_recall(sess, batch)
   recall = sess.run([model.recall_1, model.recall_10, model.recall_20, model.recall_30, model.recall_40, model.recall_50])
+  for i, k in zip(range(6), [1, 10, 20, 30, 40, 50]):
+    model.eval_writer.add_summary(
+      summary=tf.Summary(
+          value=[tf.Summary.Value(tag='R@'+str(k), simple_value=recall[i])]),
+      global_step=model.global_step.eval())
   return recall
 
 
