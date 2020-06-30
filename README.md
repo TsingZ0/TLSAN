@@ -16,9 +16,13 @@ Amazon exposes the official datasets (http://jmcauley.ucsd.edu/data/amazon/) whi
 Datasets | users | items | categories | samples | avg.<br>items/cate | avg.<br>behaviors/item | avg.<br>behaviors/user
 :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-:
 Electronics | 39991 | 22048 | 673 | 561100 | 32.8 | 25.4 | 14.0
+CDs-Vinyl | 24179 | 27602 | 310 | 470087 | 89.0 | 17.0 | 19.4
 Clothing-Shoes | 2010 | 1723 | 226 | 13157 | 7.6 | 7.6 | 6.5
 Digital-Music | 1659 | 1583 | 53 | 28852 | 29.9 | 18.2 | 17.4
+Office-Products | 1720 | 901 | 170 | 29387 | 5.3 | 32.6 | 17.0
+Movies-TV | 35896 | 28589 | 15 | 752676 | 1905.9 | 20.9 | 26.3
 Beauty | 3783 | 2658 | 179 | 54225 | 14.8 | 20.4 | 14.3
+Home-Kitchen | 11567 | 7722 | 683 | 143088 | 11.3 | 12.3 | 18.5
 Video-Games | 5436 | 4295 | 58 | 83748 | 74.1 | 19.5 | 15.4
 Toys-and-Games | 2677 | 2474 | 221 | 37515 | 11.2 | 15.2 | 14.0
 

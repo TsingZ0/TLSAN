@@ -11,7 +11,7 @@ VERY_BIG_NUMBER = 1e30
 VERY_NEGATIVE_NUMBER = -VERY_BIG_NUMBER
 
 class Model(object):
-    def __init__(self, config, item_cate_list, user_cate_list):
+    def __init__(self, config, item_cate_list):
         self.config = config
 
         # Summary Writer
@@ -20,13 +20,14 @@ class Model(object):
 
         # Building network
         self.init_placeholders()
-        self.build_model(item_cate_list, user_cate_list)
+        self.build_model(item_cate_list)
         self.init_optimizer()
 
 
     def init_placeholders(self):
         # [bs] user id
         self.u = tf.placeholder(tf.int32, [None,])
+        self.u_cate = tf.placeholder(tf.int32, [None,])
 
         # [bs] item id
         self.i = tf.placeholder(tf.int32, [None,])
@@ -39,7 +40,7 @@ class Model(object):
         self.hist_i_new = tf.placeholder(tf.int32, [None, None])
         
         # [bs, sl] history item purchase time
-        self.hist_t = tf.placeholder(tf.int32, [None, None])
+        self.hist_t = tf.placeholder(tf.float32, [None, None])
 
         # [bs] valid length of `hist_i`
         self.sl = tf.placeholder(tf.int32, [None,])
@@ -52,7 +53,7 @@ class Model(object):
         self.is_training = tf.placeholder(tf.bool, [])
 
 
-    def build_model(self, item_cate_list, user_cate_list):
+    def build_model(self, item_cate_list):
         # parameter for position matrix
         gamma = tf.get_variable(
             "gamma_parameter", [], 
@@ -69,6 +70,11 @@ class Model(object):
         user_emb = tf.get_variable(
             "user_emb", 
             [self.config['user_count'], self.config['userid_embedding_size']])
+        # user position preference
+        usert_emb = tf.get_variable(
+            "usert_emb", 
+            [self.config['user_count'], self.config['k']], 
+            initializer=tf.constant_initializer(-1.0))
         # category embedding
         cate_emb = tf.get_variable(
             "cate_emb",
@@ -85,23 +91,26 @@ class Model(object):
 
         # user embedding
         u_emb = tf.nn.embedding_lookup(user_emb, self.u)
-        u_cate_emb = tf.nn.embedding_lookup(cate_emb, tf.gather(user_cate_list, self.u))
+        u_cate_emb = tf.nn.embedding_lookup(cate_emb, self.u_cate)
         u_emb = tf.concat([u_emb, u_cate_emb], -1)
+
+        # user position preference on position
+        ut_emb = tf.nn.embedding_lookup(usert_emb, self.u)
+        hist_t = tf.convert_to_tensor(self.hist_t)
+        ut_emb = tf.tile(
+            tf.expand_dims(tf.multiply(ut_emb, hist_t), -1), 
+            [1, 1, self.config['hidden_units']])
 
         # long-term sequential behavior embedding
         h_emb = tf.nn.embedding_lookup(item_emb, self.hist_i)
         h_cate_emb = tf.nn.embedding_lookup(cate_emb, tf.gather(item_cate_list, self.hist_i))        
-        h_emb = tf.concat([h_emb, h_cate_emb], -1)
+        h_emb = tf.multiply(
+            tf.concat([h_emb, h_cate_emb], -1),
+            tf.multiply(gamma, ut_emb))
         # short-term sequential behavior embedding
         h_emb_new = tf.nn.embedding_lookup(item_emb, self.hist_i_new)
         h_cate_emb_new = tf.nn.embedding_lookup(cate_emb, tf.gather(item_cate_list, self.hist_i_new))
         h_emb_new = tf.concat([h_emb_new, h_cate_emb_new], -1)
-
-        # directly concatenate position embedding or not
-        if self.config['concat_position_emb'] == True:
-            t_emb = tf.one_hot(self.hist_t, 12, dtype=tf.float32)
-            h_emb = tf.concat([h_emb, t_emb], -1)
-            h_emb = tf.layers.dense(h_emb, self.config['hidden_units'])
         
 
         num_blocks = self.config['num_blocks']
@@ -111,7 +120,6 @@ class Model(object):
 
 
         u_t, self.att0, self.att1 = attention_net(
-            user=u_emb,
             enc=h_emb, 
             enc_new=h_emb_new, 
             sl=self.sl,
@@ -124,6 +132,7 @@ class Model(object):
             dropout_rate=dropout_rate, 
             is_training=self.is_training, 
             reuse=False)
+        u_t = tf.add(u_t, u_emb)
 
         self.logits = tf.reduce_sum(tf.multiply(u_t, i_emb), -1) + i_b
 
@@ -156,6 +165,7 @@ class Model(object):
             tf.nn.l2_loss(user_emb),
             tf.nn.l2_loss(item_emb),
             tf.nn.l2_loss(cate_emb),
+            tf.nn.l2_loss(usert_emb),
         ])
         
         self.loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=self.logits, labels=self.y))\
@@ -166,6 +176,7 @@ class Model(object):
             tf.summary.histogram('embedding/1_item_emb', item_emb),
             tf.summary.histogram('embedding/2_user_emb', user_emb),
             tf.summary.histogram('embedding/3_cate_emb', cate_emb),
+            tf.summary.histogram('embedding/4_usert_emb', usert_emb),
             tf.summary.histogram('attention_output', u_t),
             tf.summary.scalar('L2_norm_user_item', l2_norm),
             tf.summary.scalar('Training Loss', self.loss),  
@@ -198,6 +209,7 @@ class Model(object):
 
         input_feed = {
             self.u: batch[0],
+            self.u_cate: batch[8], 
             self.i: batch[1],
             self.y: batch[2],
             self.hist_i: batch[3],
@@ -226,6 +238,7 @@ class Model(object):
         #positive_item_list
         res1 = sess.run(self.logits, feed_dict={
             self.u: batch[0],
+            self.u_cate: batch[8], 
             self.i: batch[1],
             self.hist_i: batch[3],
             self.hist_i_new: batch[4],
@@ -237,6 +250,7 @@ class Model(object):
         #negative_item_list
         res2 = sess.run(self.logits, feed_dict={
             self.u: batch[0],
+            self.u_cate: batch[8], 
             self.i: batch[2],
             self.hist_i: batch[3],
             self.hist_i_new: batch[4],
@@ -256,6 +270,7 @@ class Model(object):
 
         return sess.run(prec_update_ops, feed_dict={ 
             self.u: batch[0],
+            self.u_cate: batch[8], 
             self.i: batch[1],
             self.hist_i: batch[3],
             self.hist_i_new: batch[4],
@@ -273,6 +288,7 @@ class Model(object):
 
         return sess.run(recall_update_ops, feed_dict={ 
             self.u: batch[0],
+            self.u_cate: batch[8], 
             self.i: batch[1],
             self.hist_i: batch[3],
             self.hist_i_new: batch[4],
@@ -298,7 +314,6 @@ class Model(object):
 
 
 def attention_net(
-        user,
         enc, 
         enc_new, 
         sl,
@@ -313,41 +328,12 @@ def attention_net(
         reuse):
     with tf.variable_scope("all", reuse=reuse):
         with tf.variable_scope("long_term"):
-            user_exp = tf.tile(tf.expand_dims(user, 1), [1, tf.shape(enc)[1], 1])
-            enc = tf.multiply(user_exp, enc)
             for i in range(num_blocks):
                 with tf.variable_scope("num_blocks0_{}".format(i)):
-                    with tf.variable_scope('fwbw_attention'):
-                        fw_res = directional_attention_with_dense(
-                            rep_tensor=enc, 
-                            rep_time=rep_time, 
-                            rep_length=sl,
-                            gamma = gamma, 
-                            direction='forward', 
-                            scope='feature_wise_self_attention_fw',
-                            keep_prob=1-dropout_rate, 
-                            is_training=is_training, 
-                            wd=0, 
-                            activation='relu', 
-                            tensor_dict=None, 
-                            name='_fw_attention')
-                        bw_res = directional_attention_with_dense(
-                            rep_tensor=enc, 
-                            rep_time=rep_time, 
-                            rep_length=sl,
-                            gamma = gamma, 
-                            direction='backward', 
-                            scope='feature_wise_self_attention_bw',
-                            keep_prob=1-dropout_rate, 
-                            is_training=is_training, 
-                            wd=0, 
-                            activation='relu', 
-                            tensor_dict=None, 
-                            name='_bw_attention')
-
                     with tf.variable_scope('long_term_layer'):
                         enc, att0 = feature_wise_attention(
-                            rep_tensor=tf.concat([fw_res, bw_res], -1), 
+                            # rep_tensor=tf.concat([fw_res, bw_res], -1), 
+                            rep_tensor=enc, 
                             rep_length=sl, 
                             num_heads=num_heads, 
                             scope='feature_wise_attention1',
@@ -362,8 +348,6 @@ def attention_net(
 
         with tf.variable_scope("short_term"):
             enc = tf.concat([enc, enc_new], 1)
-            user_exp = tf.tile(tf.expand_dims(user, 1), [1, tf.shape(enc)[1], 1])
-            enc = tf.multiply(user_exp, enc)
             for i in range(num_blocks):
                 with tf.variable_scope("num_blocks1_{}".format(i)):
                     with tf.variable_scope("short_term_layer"):
@@ -383,83 +367,12 @@ def attention_net(
 
 # --------------- supporting networks(modified) ----------------
 
-def directional_attention_with_dense(rep_tensor, rep_time, rep_length, gamma, direction=None, scope=None,
-                                     keep_prob=1., is_training=None, wd=0., activation='elu',
-                                     tensor_dict=None, name=None):    
-    def scaled_tanh(x, scale=5.):
-        return scale * tf.nn.tanh(1./scale * x)
-
-    bs, sl, vec = tf.shape(rep_tensor)[0], tf.shape(rep_tensor)[1], tf.shape(rep_tensor)[2]
-    rep_mask = tf.sequence_mask(rep_length, sl)
-    ivec = rep_tensor.get_shape()[2]
-    with tf.variable_scope(scope or 'directional_attention_%s' % direction or 'diag'):
-        # mask generation
-        sl_indices = tf.range(sl, dtype=tf.int32)
-        sl_col, sl_row = tf.meshgrid(sl_indices, sl_indices)
-        if direction is None:
-            direct_mask = tf.cast(tf.diag(0 - tf.ones([sl], tf.int32)) + 1, tf.bool)
-        else:
-            if direction == 'forward':
-                direct_mask = tf.greater(sl_row, sl_col)
-            else:
-                direct_mask = tf.greater(sl_col, sl_row)
-        direct_mask_tile = tf.tile(tf.expand_dims(direct_mask, 0), [bs, 1, 1])  # bs,sl,sl
-        rep_mask_tile = tf.tile(tf.expand_dims(rep_mask, 1), [1, sl, 1])  # bs,sl,sl
-        attn_mask = tf.logical_and(direct_mask_tile, rep_mask_tile)  # bs,sl,sl
-
-        #position
-        length_col = tf.tile(tf.expand_dims(rep_time, -1), [1, 1, sl])
-        length_row = tf.transpose(length_col, [0, 2, 1])
-        position = - tf.abs(tf.subtract(length_col, length_row))
-        position = tf.multiply(gamma, tf.cast(position, tf.float32))
-
-        # non-linear
-        rep_map = bn_dense_layer(rep_tensor, ivec, True, 0., 'bn_dense_map', activation,
-                                False, wd, keep_prob, is_training)
-        rep_map_tile = tf.tile(tf.expand_dims(rep_map, 1), [1, sl, 1, 1])  # bs,sl,sl,vec
-        rep_map_dp = dropout(rep_map, keep_prob, is_training)
-
-        # attention
-        with tf.variable_scope('disan_attention'):  # bs,sl,sl,vec
-            f_bias = tf.get_variable('f_bias',[ivec], tf.float32, tf.constant_initializer(0.))
-            dependent = linear(rep_map_dp, ivec, False, scope='linear_dependent')  # bs,sl,vec
-            dependent_etd = tf.expand_dims(dependent, 1)  # bs,1,sl,vec
-            head = linear(rep_map_dp, ivec, False, scope='linear_head') # bs,sl,vec
-            head_etd = tf.expand_dims(head, 2)  # bs,sl,1,vec
-
-            logits = scaled_tanh(dependent_etd + head_etd + f_bias, 5.0)  # bs,sl,sl,vec
-
-            logits_masked = exp_mask_for_high_rank_position(logits, attn_mask, position)
-            attn_score = tf.nn.softmax(logits_masked, 2)  # bs,sl,sl,vec
-            attn_score = mask_for_high_rank(attn_score, attn_mask)
-
-            attn_result = tf.reduce_sum(attn_score * rep_map_tile, 2)  # bs,sl,vec
-
-        with tf.variable_scope('disan_output'):
-            o_bias = tf.get_variable('o_bias',[ivec], tf.float32, tf.constant_initializer(0.))
-            # input gate
-            fusion_gate = tf.nn.sigmoid(
-                linear(rep_map, ivec, True, 0., 'linear_fusion_i', False, wd, keep_prob, is_training) +
-                linear(attn_result, ivec, True, 0., 'linear_fusion_a', False, wd, keep_prob, is_training) +
-                o_bias)
-            output = fusion_gate * rep_map + (1-fusion_gate) * attn_result
-            output = mask_for_high_rank(output, rep_mask)
-
-        # save attention
-        if tensor_dict is not None and name is not None:
-            tensor_dict[name + '_dependent'] = dependent
-            tensor_dict[name + '_head'] = head
-            tensor_dict[name + '_attn_score'] = attn_score
-            tensor_dict[name + '_gate'] = fusion_gate
-        return output
-
-
 def feature_wise_attention(rep_tensor, rep_length, num_heads, scope=None,
                                 keep_prob=1., is_training=None, wd=0., activation='elu',
                                 tensor_dict=None, name=None):
     # Multi-heads
     rep_tensor = tf.concat(tf.split(rep_tensor, num_heads, axis=2), axis=0)  # bs*heads,sl,vec/heads
-    bs, sl, vec = tf.shape(rep_tensor)[0], tf.shape(rep_tensor)[1], tf.shape(rep_tensor)[2]
+    sl = tf.shape(rep_tensor)[1]
     rep_mask = tf.sequence_mask(rep_length, sl)
     rep_mask = tf.tile(rep_mask, [num_heads, 1])
     ivec = rep_tensor.get_shape()[2]
@@ -503,16 +416,6 @@ def bn_dense_layer(input_tensor, hn, bias, bias_start=0.0, scope=None,
             linear_map = tf.contrib.layers.batch_norm(
                 linear_map, center=True, scale=True, is_training=is_training, scope='bn')
         return activation_func(linear_map)
-
-
-def dropout(x, keep_prob, is_training, noise_shape=None, seed=None, name=None):
-    with tf.name_scope(name or "dropout"):
-        assert is_training is not None
-        if keep_prob < 1.0:
-            d = tf.nn.dropout(x, keep_prob, noise_shape=noise_shape, seed=seed)
-            out = tf.cond(is_training, lambda: d, lambda: x)
-            return out
-        return x
 
 
 def linear(args, output_size, bias, bias_start=0.0, scope=None, squeeze=False, wd=0.0, keep_prob=1.0,
@@ -574,22 +477,10 @@ def reconstruct(tensor, ref, keep, dim_reduced_keep=None):
     return out
 
 
-def mask_for_high_rank(val, val_mask, name=None):
-    val_mask = tf.expand_dims(val_mask, -1)
-    return tf.multiply(val, tf.cast(val_mask, tf.float32), name=name or 'mask_for_high_rank')
-
-
 def exp_mask_for_high_rank(val, val_mask, name=None):
     val_mask = tf.expand_dims(val_mask, -1)
     return tf.add(val, (1 - tf.cast(val_mask, tf.float32)) * VERY_NEGATIVE_NUMBER, 
                 name=name or 'exp_mask_for_high_rank')
-
-
-def exp_mask_for_high_rank_position(val, val_mask, position, name=None):
-    val_mask = tf.expand_dims(val_mask, -1)
-    position = tf.expand_dims(position, -1)
-    return tf.add(tf.add(val, (1 - tf.cast(val_mask, tf.float32)) * VERY_NEGATIVE_NUMBER), position,
-                name=name or 'exp_mask_for_high_rank_position')
 
 
 def add_reg_without_bias(scope=None):

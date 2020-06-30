@@ -2,8 +2,8 @@ import numpy as np
 
 # training
 class DataInput:
-  def __init__(self, data, batch_size):
-
+  def __init__(self, data, batch_size, k):
+    self.k = k
     self.batch_size = batch_size
     self.data = data
     self.epoch_size = len(self.data) // self.batch_size
@@ -22,35 +22,41 @@ class DataInput:
     ts = self.data[self.i * self.batch_size : min((self.i+1) * self.batch_size, len(self.data))]
     self.i += 1
 
-    u, i, y, sl, new_sl = [], [], [], [], []
+    u, i, y, sl, new_sl, c = [], [], [], [], [], []
     for t in ts:
       u.append(t[0])
       i.append(t[4])
       y.append(t[5])
-      sl.append(len(t[1]))
+      c.append(t[6])
+      sl.append(min(len(t[1]), self.k))
       new_sl.append(len(t[2]))
-    max_sl = max(sl)
     max_new_sl = max(new_sl)
 
-    hist_i = np.zeros([len(ts), max_sl], np.int64)
-    hist_t = np.zeros([len(ts), max_sl], np.float32)
+    hist_i = np.zeros([len(ts), self.k], np.int64)
+    hist_t = np.zeros([len(ts), self.k], np.float32)
     hist_i_new = np.zeros([len(ts), max_new_sl], np.int64)
 
-    k = 0
+    kk = 0
     for t in ts:
-      for l in range(len(t[1])):
-          hist_i[k][l] = t[1][l]
-          hist_t[k][l] = t[3][l]
+      length = len(t[1])
+      if length > self.k:
+        for l in range(self.k):
+          hist_i[kk][l] = t[1][length-self.k+l]
+          hist_t[kk][l] = t[3][length-self.k+l]
+      else:
+        for l in range(length):
+          hist_i[kk][l] = t[1][l]
+          hist_t[kk][l] = t[3][l]
       for l in range(len(t[2])):
-          hist_i_new[k][l] = t[2][l]
-      k += 1
+          hist_i_new[kk][l] = t[2][l]
+      kk += 1
 
-    return self.i, (u, i, y, hist_i, hist_i_new, hist_t, sl, new_sl)
+    return self.i, (u, i, y, hist_i, hist_i_new, hist_t, sl, new_sl, c)
 
 # testing
 class DataInputTest:
-  def __init__(self, data, batch_size):
-
+  def __init__(self, data, batch_size, k):
+    self.k = k
     self.batch_size = batch_size
     self.data = data
     self.epoch_size = len(self.data) // self.batch_size
@@ -69,27 +75,33 @@ class DataInputTest:
     ts = self.data[self.i * self.batch_size : min((self.i+1) * self.batch_size, len(self.data))]
     self.i += 1
 
-    u, i, j, sl, new_sl = [], [], [], [], []
+    u, i, j, sl, new_sl, c = [], [], [], [], [], []
     for t in ts:
       u.append(t[0])
       i.append(t[4][0])
       j.append(t[4][1])
-      sl.append(len(t[1]))
+      c.append(t[5])
+      sl.append(min(len(t[1]), self.k))
       new_sl.append(len(t[2]))
-    max_sl = max(sl)
     max_new_sl = max(new_sl)
 
-    hist_i = np.zeros([len(ts), max_sl], np.int64)
-    hist_t = np.zeros([len(ts), max_sl], np.float32)
+    hist_i = np.zeros([len(ts), self.k], np.int64)
+    hist_t = np.zeros([len(ts), self.k], np.float32)
     hist_i_new = np.zeros([len(ts), max_new_sl], np.int64)
 
-    k = 0
+    kk = 0
     for t in ts:
-      for l in range(len(t[1])):
-          hist_i[k][l] = t[1][l]
-          hist_t[k][l] = t[3][l]
+      length = len(t[1])
+      if length > self.k:
+        for l in range(self.k):
+          hist_i[kk][l] = t[1][length-self.k+l]
+          hist_t[kk][l] = t[3][length-self.k+l]
+      else:
+        for l in range(length):
+          hist_i[kk][l] = t[1][l]
+          hist_t[kk][l] = t[3][l]
       for l in range(len(t[2])):
-          hist_i_new[k][l] = t[2][l]
-      k += 1
+          hist_i_new[kk][l] = t[2][l]
+      kk += 1
 
-    return self.i, (u, i, j, hist_i, hist_i_new, hist_t, sl, new_sl)
+    return self.i, (u, i, j, hist_i, hist_i_new, hist_t, sl, new_sl, c)

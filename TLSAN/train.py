@@ -16,21 +16,23 @@ random.seed(1234)
 np.random.seed(1234)
 tf.set_random_seed(1234)
 logging.disable(logging.WARNING)
-# os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
+os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
+
+time_line = []
+auc_value = []
 
 # pylint: disable=line-too-long
 # Network parameters
 tf.app.flags.DEFINE_integer('hidden_units', 64, 'Number of hidden units in each layer')
 tf.app.flags.DEFINE_integer('num_blocks', 1, 'Number of blocks in each attention')
 tf.app.flags.DEFINE_integer('num_heads', 8, 'Number of heads in each attention')
+tf.app.flags.DEFINE_integer('SL', 10, 'Length of long-term items')
 tf.app.flags.DEFINE_float('dropout', 0.0, 'Dropout probability(0.0: no dropout)')
 tf.app.flags.DEFINE_float('regulation_rate', 0.00005, 'L2 regulation rate')
 
 tf.app.flags.DEFINE_integer('itemid_embedding_size', 32, 'Item id feature size')
 tf.app.flags.DEFINE_integer('userid_embedding_size', 32, 'User id feature size')
 tf.app.flags.DEFINE_integer('cateid_embedding_size', 32, 'Category id feature size')
-
-tf.app.flags.DEFINE_boolean('concat_position_emb', True, 'Concat position-embedding')
 
 # Training parameters
 tf.app.flags.DEFINE_boolean('from_scratch', True, 'Romove model_dir, and train from scratch, default: False')
@@ -48,16 +50,16 @@ tf.app.flags.DEFINE_integer('eval_freq', 1000, 'Display training status every th
 
 
 # Runtime parameters
-tf.app.flags.DEFINE_string('cuda_visible_devices', '0', 'Choice which GPU to use')
+tf.app.flags.DEFINE_string('cuda_visible_devices', '3', 'Choice which GPU to use')
 tf.app.flags.DEFINE_float('per_process_gpu_memory_fraction', 0.0, 'Gpu memory use fraction, 0.0 for allow_growth=True')
 # pylint: enable=line-too-long
 
 FLAGS = tf.app.flags.FLAGS
 
-def create_model(sess, config, item_cate_list, user_cate_list):
+def create_model(sess, config, item_cate_list):
 
   print(json.dumps(config, indent=4), flush=True)
-  model = Model(config, item_cate_list, user_cate_list)
+  model = Model(config, item_cate_list)
 
   print('All global variables:')
   for v in tf.global_variables():
@@ -81,9 +83,9 @@ def create_model(sess, config, item_cate_list, user_cate_list):
 
   return model
 
-def eval_auc(sess, test_set, model):
+def eval_auc(sess, test_set, model, config):
   auc_sum = 0.0
-  for _, batch in DataInputTest(test_set, FLAGS.test_batch_size):
+  for _, batch in DataInputTest(test_set, FLAGS.test_batch_size, config['SL']):
     auc_sum += model.eval_auc(sess, batch) * len(batch[0])
   res = auc_sum / len(test_set)
   model.eval_writer.add_summary(
@@ -93,8 +95,8 @@ def eval_auc(sess, test_set, model):
 
   return res
 
-def eval_prec(sess, test_set, model):
-  for _, batch in DataInputTest(test_set, FLAGS.test_batch_size):
+def eval_prec(sess, test_set, model, config):
+  for _, batch in DataInputTest(test_set, FLAGS.test_batch_size, config['SL']):
     model.eval_prec(sess, batch)
   prec = sess.run([model.prec_1, model.prec_10, model.prec_20, model.prec_30, model.prec_40, model.prec_50])
   for i, k in zip(range(6), [1, 10, 20, 30, 40, 50]):
@@ -104,8 +106,8 @@ def eval_prec(sess, test_set, model):
       global_step=model.global_step.eval())
   return prec
 
-def eval_recall(sess, test_set, model):
-  for _, batch in DataInputTest(test_set, FLAGS.test_batch_size):
+def eval_recall(sess, test_set, model, config):
+  for _, batch in DataInputTest(test_set, FLAGS.test_batch_size, config['SL']):
     model.eval_recall(sess, batch)
   recall = sess.run([model.recall_1, model.recall_10, model.recall_20, model.recall_30, model.recall_40, model.recall_50])
   for i, k in zip(range(6), [1, 10, 20, 30, 40, 50]):
@@ -130,7 +132,6 @@ def train():
     train_set = pickle.load(f)
     test_set = pickle.load(f)
     user_count, item_count, cate_count = pickle.load(f)
-    user_cate_list = pickle.load(f)
     item_cate_list = pickle.load(f)
 
   # Config GPU options
@@ -157,21 +158,21 @@ def train():
   with tf.Session(config=tf.ConfigProto(gpu_options=gpu_options)) as sess:
 
     # Create a new model or reload existing checkpoint
-    model = create_model(sess, config, item_cate_list, user_cate_list)
+    model = create_model(sess, config, item_cate_list)
     print('Init finish.\tCost time: %.2fs' % (time.time()-start_time),
           flush=True)
 
     # Eval init AUC
-    print('Init AUC: %.4f' % eval_auc(sess, test_set, model))
+    print('Init AUC: %.4f' % eval_auc(sess, test_set, model, config))
     # Eval init precision
     print('Init precision:')
-    prec = eval_prec(sess, test_set, model)
+    prec = eval_prec(sess, test_set, model, config)
     for i, k in zip(range(6), [1, 10, 20, 30, 40, 50]):
       print('@' + str(k) + ' = %.4f' % prec[i], end=' ')
     print()
     # Eval init recall
     print('Init recall:')
-    recall = eval_recall(sess, test_set, model)
+    recall = eval_recall(sess, test_set, model, config)
     for i, k in zip(range(6), [1, 10, 20, 30, 40, 50]):
       print('@' + str(k) + ' = %.4f' % recall[i], end=' ')
     print()
@@ -188,36 +189,42 @@ def train():
 
     for _ in range(FLAGS.max_epochs):
       random.shuffle(train_set)
-      for _, batch in DataInput(train_set, FLAGS.train_batch_size):
+      for _, batch in DataInput(train_set, FLAGS.train_batch_size, config['SL']):
 
         add_summary = bool(model.global_step.eval() % FLAGS.display_freq == 0)
         step_loss = model.train(sess, batch, lr, add_summary)
         avg_loss += step_loss
 
         if model.global_step.eval() % FLAGS.eval_freq == 0:
-          test_auc = eval_auc(sess, test_set, model)
+          test_auc = eval_auc(sess, test_set, model, config)
+
+          # Training curve
+          time_line.append(time.time()-start_time)
+          auc_value.append(test_auc)
+
           print('Epoch %d Global_step %d\tTrain_loss: %.4f\tEval_auc: %.4f\t' %
                 (model.global_epoch_step.eval(), model.global_step.eval(),
                  avg_loss / FLAGS.eval_freq, test_auc),
                 flush=True)
           print('Precision:')
-          prec = eval_prec(sess, test_set, model)
+          prec = eval_prec(sess, test_set, model, config)
           for i, k in zip(range(6), [1, 10, 20, 30, 40, 50]):
             print('@' + str(k) + ' = %.4f' % prec[i], end=' ')
           print()
           print('Recall:')
-          recall = eval_recall(sess, test_set, model)
+          recall = eval_recall(sess, test_set, model, config)
           for i, k in zip(range(6), [1, 10, 20, 30, 40, 50]):
             print('@' + str(k) + ' = %.4f' % recall[i], end=' ')
           print()
 
           avg_loss = 0.0
 
-          for i in range(6):
-            if prec[i] > best_prec[i]:
-              best_prec[i] = prec[i]
-            if recall[i] > best_recall[i]:
-              best_recall[i] = recall[i]
+          if model.global_step.eval() > 20000:
+            for i in range(6):
+              if prec[i] > best_prec[i]:
+                best_prec[i] = prec[i]
+              if recall[i] > best_recall[i]:
+                best_recall[i] = recall[i]
           if test_auc > 0.8 and test_auc > best_auc:
             best_auc = test_auc
             model.save(sess)
@@ -247,3 +254,5 @@ def main(_):
 
 if __name__ == '__main__':
   tf.app.run()
+  with open('training_time.pkl') as f:
+    pickle.dump((time_line, auc_value), f, pickle.HIGHEST_PROTOCOL)
