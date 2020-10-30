@@ -73,7 +73,7 @@ class Model(object):
         # user position preference
         usert_emb = tf.get_variable(
             "usert_emb", 
-            [self.config['user_count'], self.config['k']], 
+            [self.config['user_count'], self.config['SL']], 
             initializer=tf.constant_initializer(-1.0))
         # category embedding
         cate_emb = tf.get_variable(
