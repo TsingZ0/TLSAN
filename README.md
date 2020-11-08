@@ -27,7 +27,13 @@ Video-Games | 5436 | 4295 | 58 | 83748 | 74.1 | 19.5 | 15.4
 Toys-and-Games | 2677 | 2474 | 221 | 37515 | 11.2 | 15.2 | 14.0
 
 ## How to run the codes
-Build dataset:
+Download raw data and preprocess it with utils:
+```
+sh 0_download_raw.sh
+python3 1_convert_pd.py
+python3 2_remap_id.py
+```
+Build dataset for each model:
 ```
 python3 build_dataset.py
 ```
