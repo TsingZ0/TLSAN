@@ -5,8 +5,8 @@ import numpy as np
 max_length = 90
 random.seed(1234)
 
-with open('../raw_data/remap.pkl', 'rb') as f:
-  reviews_df = pickle.load(f)
+with open('../Data/Digital_Music.pkl', 'rb') as f:
+  reviews_df, meta_df = pickle.load(f)
   cate_list = pickle.load(f)
   user_count, item_count, cate_count, example_count = pickle.load(f)
 
