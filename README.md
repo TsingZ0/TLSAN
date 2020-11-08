@@ -2,10 +2,10 @@
 This is our implementation for our paper: TLSAN: Time-aware Long- and Short-term Attention Network for Next-item Recommendation
 
 ## Environments
-- Python 3.5
-- Tensorflow 1.8.0
-- numpy
-- pandas
+- Python=3.5
+- Tensorflow=1.8.0
+- numpy=1.14.2
+- pandas=0.24.1
 
 ## Datasets
 Amazon exposes the official datasets (http://jmcauley.ucsd.edu/data/amazon/) which have filtered out users and items with less than 5 reviews and removed a large amount of invalid data. Because of above advantages, these datasets are widely utilized by researchers. We also chose Amazon's dataset for experiments. In our experiments, only users, items, interactions, and category information are utilized. We do the preprocessing in the following two steps:
