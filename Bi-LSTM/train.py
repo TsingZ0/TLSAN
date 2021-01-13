@@ -16,7 +16,7 @@ np.random.seed(1234)
 tf.set_random_seed(1234)
 
 train_batch_size = 32
-test_batch_size = 32
+test_batch_size = 128
 
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
 model_dir = 'save_path'

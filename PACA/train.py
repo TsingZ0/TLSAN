@@ -36,7 +36,7 @@ tf.app.flags.DEFINE_float('learning_rate', 1.0, 'Learning rate')
 tf.app.flags.DEFINE_float('max_gradient_norm', 5.0, 'Clip gradients to this norm')
 
 tf.app.flags.DEFINE_integer('train_batch_size', 32, 'Training Batch size')
-tf.app.flags.DEFINE_integer('test_batch_size', 32, 'Testing Batch size')
+tf.app.flags.DEFINE_integer('test_batch_size', 128, 'Testing Batch size')
 tf.app.flags.DEFINE_integer('max_epochs', 70, 'Maximum # of training epochs')
 
 tf.app.flags.DEFINE_integer('display_freq', 100, 'Display training status every this iteration')

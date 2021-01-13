@@ -26,7 +26,7 @@ auc_value = []
 tf.app.flags.DEFINE_integer('hidden_units', 64, 'Number of hidden units in each layer')
 tf.app.flags.DEFINE_integer('num_blocks', 1, 'Number of blocks in each attention')
 tf.app.flags.DEFINE_integer('num_heads', 8, 'Number of heads in each attention')
-tf.app.flags.DEFINE_integer('SL', 10, 'Length of long-term items')
+tf.app.flags.DEFINE_integer('SL', 10, 'Length of long-term sessions')
 tf.app.flags.DEFINE_float('dropout', 0.0, 'Dropout probability(0.0: no dropout)')
 tf.app.flags.DEFINE_float('regulation_rate', 0.00005, 'L2 regulation rate')
 
