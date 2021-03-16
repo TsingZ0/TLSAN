@@ -26,7 +26,7 @@ auc_value = []
 tf.app.flags.DEFINE_integer('hidden_units', 64, 'Number of hidden units in each layer')
 tf.app.flags.DEFINE_integer('num_blocks', 1, 'Number of blocks in each attention')
 tf.app.flags.DEFINE_integer('num_heads', 8, 'Number of heads in each attention')
-tf.app.flags.DEFINE_integer('SL', 10, 'Length of long-term sessions')
+tf.app.flags.DEFINE_integer('Ls', 10, 'Length of long-term sessions')
 tf.app.flags.DEFINE_float('dropout', 0.0, 'Dropout probability(0.0: no dropout)')
 tf.app.flags.DEFINE_float('regulation_rate', 0.00005, 'L2 regulation rate')
 
@@ -85,7 +85,7 @@ def create_model(sess, config, item_cate_list):
 
 def eval_auc(sess, test_set, model, config):
   auc_sum = 0.0
-  for _, batch in DataInputTest(test_set, FLAGS.test_batch_size, config['SL']):
+  for _, batch in DataInputTest(test_set, FLAGS.test_batch_size, config['Ls']):
     auc_sum += model.eval_auc(sess, batch) * len(batch[0])
   res = auc_sum / len(test_set)
   model.eval_writer.add_summary(
@@ -96,7 +96,7 @@ def eval_auc(sess, test_set, model, config):
   return res
 
 def eval_prec(sess, test_set, model, config):
-  for _, batch in DataInputTest(test_set, FLAGS.test_batch_size, config['SL']):
+  for _, batch in DataInputTest(test_set, FLAGS.test_batch_size, config['Ls']):
     model.eval_prec(sess, batch)
   prec = sess.run([model.prec_1, model.prec_10, model.prec_20, model.prec_30, model.prec_40, model.prec_50])
   for i, k in zip(range(6), [1, 10, 20, 30, 40, 50]):
@@ -107,7 +107,7 @@ def eval_prec(sess, test_set, model, config):
   return prec
 
 def eval_recall(sess, test_set, model, config):
-  for _, batch in DataInputTest(test_set, FLAGS.test_batch_size, config['SL']):
+  for _, batch in DataInputTest(test_set, FLAGS.test_batch_size, config['Ls']):
     model.eval_recall(sess, batch)
   recall = sess.run([model.recall_1, model.recall_10, model.recall_20, model.recall_30, model.recall_40, model.recall_50])
   for i, k in zip(range(6), [1, 10, 20, 30, 40, 50]):
@@ -189,7 +189,7 @@ def train():
 
     for _ in range(FLAGS.max_epochs):
       random.shuffle(train_set)
-      for _, batch in DataInput(train_set, FLAGS.train_batch_size, config['SL']):
+      for _, batch in DataInput(train_set, FLAGS.train_batch_size, config['Ls']):
 
         add_summary = bool(model.global_step.eval() % FLAGS.display_freq == 0)
         step_loss = model.train(sess, batch, lr, add_summary)
